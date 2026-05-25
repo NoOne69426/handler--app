@@ -263,7 +263,7 @@ ipcMain.handle('run-command', async (event, cmd) => {
     const timer = setTimeout(() => {
       child.kill();
       settle({ stdout: out.trim(), stderr: 'Timeout (60s) — command took too long', code: -1 });
-    }, 60000);
+    }, 120000);
 
     child.stdout.on('data', d => out += d.toString());
     child.stderr.on('data', d => err += d.toString());

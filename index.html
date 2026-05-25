@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Handler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;}
+:root{
+  --bg:#0a0c10;--s1:#0f1117;--s2:#141720;--s3:#1a1e2a;
+  --b1:#1e2330;--b2:#252c3e;--b3:#2e3650;
+  --accent:#00d4ff;--accent2:#7c5cbf;--accent3:#00ff9d;
+  --warn:#ffb347;--danger:#ff4757;--info:#4a9eff;
+  --text:#dde1f0;--muted:#5c6380;--muted2:#8892b0;
+  --mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif;
+  --r:8px;--r2:12px;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;overflow:hidden;height:100vh;display:flex;flex-direction:column;}
+
+/* ── Titlebar ── */
+#titlebar{height:40px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 14px;gap:10px;-webkit-app-region:drag;flex-shrink:0;}
+.win-btn{width:12px;height:12px;border-radius:50%;border:none;cursor:pointer;-webkit-app-region:no-drag;transition:filter .15s;}
+.win-btn:hover{filter:brightness(1.3);}
+#btn-close{background:#ff5f57;}#btn-min{background:#ffbd2e;}#btn-max{background:#28ca41;}
+.tb-title{font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);flex:1;text-align:center;}
+.tb-right{display:flex;align-items:center;gap:12px;-webkit-app-region:no-drag;}
+.tb-stat{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.tb-stat span{color:var(--muted2);}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--accent3);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Layout ── */
+#layout{display:flex;flex:1;min-height:0;}
+
+/* ── Sidebar ── */
+#sidebar{width:220px;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;flex-shrink:0;}
+.nav-section{padding:14px 0 6px;}
+.nav-label{font-size:9px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);padding:4px 18px 8px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;color:var(--muted2);cursor:pointer;border-left:2px solid transparent;transition:all .15s;font-size:12px;}
+.nav-item i{width:16px;text-align:center;font-size:14px;}
+.nav-item:hover{color:var(--accent);background:rgba(0,212,255,.06);border-left-color:rgba(0,212,255,.4);}
+.nav-item.active{color:var(--accent);background:rgba(0,212,255,.1);border-left-color:var(--accent);}
+.nav-divider{height:1px;background:var(--b1);margin:6px 0;}
+.sidebar-bottom{margin-top:auto;padding:14px;}
+.api-status{font-size:11px;color:var(--muted);background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
+.api-status-row{display:flex;align-items:center;justify-content:space-between;}
+.api-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+.api-dot.ok{background:var(--accent3);}
+.api-dot.err{background:var(--danger);}
+.api-key-inp{background:var(--s3);border:1px solid var(--b2);border-radius:5px;padding:6px 8px;font-family:var(--mono);font-size:11px;color:var(--text);width:100%;outline:none;margin-top:4px;}
+.api-key-inp:focus{border-color:var(--accent);}
+.save-btn{background:var(--accent);color:#000;border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;font-weight:600;width:100%;margin-top:4px;transition:filter .15s;}
+.save-btn:hover{filter:brightness(1.15);}
+
+/* ── Main area ── */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;}
+
+/* ── Tabs ── */
+.tab-content{display:none;flex:1;flex-direction:column;min-height:0;}
+.tab-content.active{display:flex;}
+
+/* ── Terminal tab ── */
+#terminal-output{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;}
+#terminal-output::-webkit-scrollbar{width:4px;}
+#terminal-output::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
+.msg{display:flex;flex-direction:column;gap:3px;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.msg-hdr{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted);}
+.badge{padding:1px 7px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;}
+.badge-user{background:rgba(124,92,191,.25);color:#a07ddd;}
+.badge-ai{background:rgba(0,212,255,.15);color:var(--accent);}
+.badge-sys{background:rgba(0,255,157,.15);color:var(--accent3);}
+.badge-err{background:rgba(255,71,87,.15);color:var(--danger);}
+.badge-cmd{background:rgba(255,179,71,.15);color:var(--warn);}
+.msg-body{background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:11px 14px;line-height:1.65;white-space:pre-wrap;word-break:break-word;color:var(--text);}
+.msg-body.user-body{border-color:rgba(124,92,191,.3);color:#c5aff0;}
+.msg-body.sys-body{color:var(--accent3);font-size:12px;}
+.msg-body.err-body{border-color:rgba(255,71,87,.25);color:var(--danger);}
+.msg-body.cmd-body{border-color:rgba(255,179,71,.2);color:var(--warn);font-size:12px;}
+.msg-actions{display:flex;gap:6px;margin-top:3px;}
+.msg-act-btn{font-size:10px;color:var(--muted);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:3px;font-family:var(--mono);}
+.msg-act-btn:hover{color:var(--accent);background:rgba(0,212,255,.08);}
+.typing{display:flex;gap:4px;padding:12px 14px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;}
+.tdot{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:blink 1.2s infinite;}
+.tdot:nth-child(2){animation-delay:.2s}.tdot:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+/* ── Input bar ── */
+#input-bar{border-top:1px solid var(--b1);padding:12px 16px;background:var(--s1);}
+.input-row{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:8px 12px;transition:border-color .2s;}
+.input-row:focus-within{border-color:var(--accent);}
+.prompt{color:var(--accent3);font-weight:600;font-size:14px;flex-shrink:0;}
+#cmd-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:13px;caret-color:var(--accent);}
+#cmd-input::placeholder{color:var(--muted);}
+.inp-btn{background:var(--accent);border:none;border-radius:5px;width:30px;height:30px;cursor:pointer;color:#000;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.inp-btn:hover{filter:brightness(1.15);}
+.inp-btn:disabled{background:var(--b2);color:var(--muted);cursor:not-allowed;}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.chip{padding:4px 10px;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);border-radius:4px;font-size:11px;color:var(--accent);cursor:pointer;transition:all .15s;}
+.chip:hover{background:rgba(0,212,255,.15);border-color:var(--accent);}
+
+/* ── Dashboard tab ── */
+#dashboard{padding:16px;overflow-y:auto;flex:1;}
+#dashboard::-webkit-scrollbar{width:4px;}
+#dashboard::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+.stat-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:14px 16px;}
+.stat-label{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.stat-val{font-size:22px;font-weight:600;color:var(--text);line-height:1;}
+.stat-sub{font-size:11px;color:var(--muted2);margin-top:4px;}
+.stat-bar-wrap{height:4px;background:var(--b2);border-radius:2px;margin-top:8px;overflow:hidden;}
+.stat-bar{height:100%;border-radius:2px;transition:width .5s ease;}
+.bar-ok{background:var(--accent3);}
+.bar-warn{background:var(--warn);}
+.bar-danger{background:var(--danger);}
+.dash-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:14px 16px;}
+.card-title{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.card-title i{color:var(--accent);}
+.info-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b1);font-size:12px;}
+.info-row:last-child{border:none;}
+.info-key{color:var(--muted);}
+.info-val{color:var(--text);}
+.refresh-btn{background:none;border:1px solid var(--b2);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--muted2);cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:5px;transition:all .15s;margin-left:auto;}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── Processes tab ── */
+#processes{display:flex;flex-direction:column;flex:1;min-height:0;}
+.proc-toolbar{padding:12px 16px;border-bottom:1px solid var(--b1);display:flex;gap:10px;align-items:center;background:var(--s1);}
+.search-inp{background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:7px 12px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;width:220px;transition:border-color .2s;}
+.search-inp:focus{border-color:var(--accent);}
+.proc-action-btn{padding:7px 14px;border-radius:6px;border:none;font-family:var(--mono);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;}
+.btn-danger{background:rgba(255,71,87,.15);color:var(--danger);border:1px solid rgba(255,71,87,.3);}
+.btn-danger:hover{background:rgba(255,71,87,.25);}
+.btn-neutral{background:var(--s2);color:var(--muted2);border:1px solid var(--b2);}
+.btn-neutral:hover{border-color:var(--accent);color:var(--accent);}
+.proc-table-wrap{flex:1;overflow-y:auto;padding:0 16px 16px;}
+.proc-table-wrap::-webkit-scrollbar{width:4px;}
+.proc-table-wrap::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
+table{width:100%;border-collapse:collapse;margin-top:12px;}
+th{text-align:left;padding:8px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--b1);position:sticky;top:0;background:var(--bg);}
+td{padding:7px 10px;font-size:12px;border-bottom:1px solid var(--b1);color:var(--text);}
+tr:hover td{background:rgba(255,255,255,.03);}
+.cpu-pill{display:inline-block;padding:2px 7px;border-radius:3px;font-size:11px;font-weight:500;}
+.cpu-low{background:rgba(0,255,157,.1);color:var(--accent3);}
+.cpu-med{background:rgba(255,179,71,.15);color:var(--warn);}
+.cpu-high{background:rgba(255,71,87,.15);color:var(--danger);}
+.kill-btn{background:none;border:1px solid rgba(255,71,87,.3);color:var(--danger);border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:var(--mono);transition:all .15s;}
+.kill-btn:hover{background:rgba(255,71,87,.15);}
+
+/* ── Files tab ── */
+#files{display:flex;flex-direction:column;flex:1;min-height:0;}
+.file-toolbar{padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;gap:8px;align-items:center;background:var(--s1);flex-wrap:wrap;}
+.path-display{flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:6px 12px;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-user-select:text;user-select:text;}
+.file-list{flex:1;overflow-y:auto;padding:12px 16px;}
+.file-list::-webkit-scrollbar{width:4px;}
+.file-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
+.file-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;cursor:pointer;transition:background .15s;}
+.file-item:hover{background:var(--s2);}
+.file-icon{font-size:16px;width:20px;text-align:center;}
+.file-icon.dir{color:var(--warn);}
+.file-icon.file{color:var(--muted2);}
+.file-name{flex:1;font-size:13px;color:var(--text);}
+.file-size{font-size:11px;color:var(--muted);}
+.file-actions{display:flex;gap:4px;opacity:0;transition:opacity .15s;}
+.file-item:hover .file-actions{opacity:1;}
+.fa-btn{background:none;border:none;color:var(--muted2);cursor:pointer;padding:3px 6px;border-radius:4px;font-size:12px;transition:all .15s;}
+.fa-btn:hover{color:var(--accent);background:rgba(0,212,255,.1);}
+.fa-btn.del:hover{color:var(--danger);background:rgba(255,71,87,.1);}
+
+/* ── Network tab ── */
+#network-tab{padding:16px;overflow-y:auto;flex:1;}
+#network-tab::-webkit-scrollbar{width:4px;}
+#network-tab::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
+
+/* ── Settings tab ── */
+#settings-tab{padding:16px;overflow-y:auto;flex:1;}
+#lab-tab{padding:16px;overflow-y:auto;flex:1;}
+.lab-section{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:16px;margin-bottom:12px;}
+.lab-title{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.lab-title i{color:var(--warn);}
+.lab-textarea{width:100%;background:var(--s3,#0f1117);border:1px solid var(--b2);border-radius:6px;padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;resize:vertical;line-height:1.6;transition:border-color .2s;}
+.lab-textarea:focus{border-color:var(--accent);}
+.lab-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.lab-label{font-size:11px;color:var(--muted2);min-width:130px;}
+.lab-inp{background:var(--s3,#0f1117);border:1px solid var(--b2);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;flex:1;min-width:80px;}
+.lab-inp:focus{border-color:var(--accent);}
+.lab-btn{padding:6px 14px;border-radius:5px;border:none;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s;}
+.lab-btn-primary{background:var(--accent);color:#000;font-weight:600;}
+.lab-btn-primary:hover{filter:brightness(1.1);}
+.lab-btn-warn{background:rgba(255,179,71,.15);color:var(--warn);border:1px solid rgba(255,179,71,.3);}
+.lab-btn-warn:hover{background:rgba(255,179,71,.25);}
+.lab-btn-danger{background:rgba(255,71,87,.15);color:var(--danger);border:1px solid rgba(255,71,87,.3);}
+.lab-btn-danger:hover{background:rgba(255,71,87,.25);}
+.lab-btn-neutral{background:var(--s3,#0f1117);color:var(--muted2);border:1px solid var(--b2);}
+.lab-btn-neutral:hover{border-color:var(--accent);color:var(--accent);}
+.lab-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.lab-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.08em;margin-left:6px;}
+.badge-live{background:rgba(0,255,157,.15);color:var(--accent3);}
+.badge-saved{background:rgba(0,212,255,.15);color:var(--accent);}
+.char-counter{font-size:10px;color:var(--muted);text-align:right;margin-top:3px;}
+.settings-section{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);padding:16px;margin-bottom:12px;}
+.settings-title{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.settings-title i{color:var(--accent2);}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--b1);}
+.setting-row:last-child{border:none;padding-bottom:0;}
+.setting-label{font-size:13px;color:var(--text);}
+.setting-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+.toggle{width:40px;height:22px;background:var(--b2);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0;}
+.toggle.on{background:var(--accent3);}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;}
+.toggle.on::after{left:21px;}
+.setting-inp{background:var(--s3);border:1px solid var(--b2);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text);width:280px;outline:none;}
+.setting-inp:focus{border-color:var(--accent);}
+.danger-btn{background:rgba(255,71,87,.15);border:1px solid rgba(255,71,87,.3);color:var(--danger);border-radius:6px;padding:7px 14px;font-size:12px;font-family:var(--mono);cursor:pointer;transition:all .15s;}
+.danger-btn:hover{background:rgba(255,71,87,.25);}
+</style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div id="titlebar">
+  <button class="win-btn" id="btn-close" onclick="pcAPI.close()" title="Close"></button>
+  <button class="win-btn" id="btn-min" onclick="pcAPI.minimize()" title="Minimize"></button>
+  <button class="win-btn" id="btn-max" onclick="pcAPI.maximize()" title="Maximize"></button>
+  <span class="tb-title">⚡ Handler</span>
+  <div class="tb-right">
+    <div class="tb-stat"><i class="fa-solid fa-microchip"></i><span id="tb-cpu">CPU: --%</span></div>
+    <div class="tb-stat"><i class="fa-solid fa-memory"></i><span id="tb-ram">RAM: --%</span></div>
+    <div class="tb-stat"><i class="fa-solid fa-clock"></i><span id="tb-time">--:--</span></div>
+    <div class="pulse"></div>
+  </div>
+</div>
+
+<!-- Layout -->
+<div id="layout">
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Command</div>
+      <div class="nav-item active" onclick="showTab('terminal',this)"><i class="fa-solid fa-terminal"></i> AI Terminal</div>
+      <div class="nav-item" onclick="showTab('dashboard',this)"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Manage</div>
+      <div class="nav-item" onclick="showTab('proc',this)"><i class="fa-solid fa-list-check"></i> Processes</div>
+      <div class="nav-item" onclick="showTab('files',this)"><i class="fa-solid fa-folder-open"></i> Files</div>
+      <div class="nav-item" onclick="showTab('network',this)"><i class="fa-solid fa-network-wired"></i> Network</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">App</div>
+      <div class="nav-item" onclick="showTab('settings',this)"><i class="fa-solid fa-gear"></i> Settings</div>
+      <div class="nav-item" onclick="showTab('lab',this)"><i class="fa-solid fa-flask"></i> Lab <span style="font-size:9px;color:var(--warn);margin-left:4px;">✦ EDIT</span></div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" onclick="clearLog()"><i class="fa-solid fa-trash-can"></i> Clear log</div>
+      <div class="nav-item" onclick="exportLog()"><i class="fa-solid fa-download"></i> Export log</div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="api-status">
+        <div class="api-status-row">
+          <span style="color:var(--muted2);font-size:11px;font-weight:500;" id="sidebar-provider-label">Claude API</span>
+          <div class="api-dot" id="api-dot"></div>
+        </div>
+        <select class="api-key-inp" id="sidebar-provider" onchange="onSidebarProviderChange()" style="margin-bottom:4px;">
+          <option value="claude">Claude (Anthropic)</option>
+          <option value="gemini">Gemini (Google)</option>
+          <option value="groq">Groq (Free)</option>
+        </select>
+        <input class="api-key-inp" id="api-key-inp" type="password" placeholder="sk-ant-..." />
+        <button class="save-btn" onclick="saveApiKey()">Save Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Terminal Tab -->
+    <div class="tab-content active" id="tab-terminal">
+      <div id="terminal-output"></div>
+      <div id="input-bar">
+        <div class="input-row">
+          <span class="prompt">❯</span>
+          <input id="cmd-input" placeholder="Ask anything or give a command…" autocomplete="off" />
+          <button class="inp-btn" id="ctx-btn" onclick="clearContext()" title="Clear AI memory (fix prompt too big)" style="background:var(--b2);color:var(--warn);margin-right:2px;font-size:11px;width:auto;padding:0 8px;" title="Clear context">CTX</button>
+          <button class="inp-btn" id="send-btn" onclick="sendCmd()" title="Send"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+        <div class="chips">
+          <div class="chip" onclick="quickCmd('Kill all non-essential processes right now')">⚡ Kill non-essentials</div>
+          <div class="chip" onclick="quickCmd('Show full system info')">🖥 System info</div>
+          <div class="chip" onclick="quickCmd('Run disk cleanup and show disk usage')">💾 Disk cleanup</div>
+          <div class="chip" onclick="quickCmd('Show active network connections')">🌐 Network status</div>
+          <div class="chip" onclick="quickCmd('Write a PowerShell script to backup Documents to Desktop')">📁 Backup script</div>
+          <div class="chip" onclick="quickCmd('Check for Windows updates via PowerShell')">🔄 Check updates</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div class="tab-content" id="tab-dashboard">
+      <div id="dashboard">
+        <div class="dash-grid" id="dash-stats">
+          <div class="stat-card"><div class="stat-label">CPU Load</div><div class="stat-val" id="d-cpu">--%</div><div class="stat-bar-wrap"><div class="stat-bar bar-ok" id="d-cpu-bar" style="width:0%"></div></div></div>
+          <div class="stat-card"><div class="stat-label">RAM Used</div><div class="stat-val" id="d-ram">--</div><div class="stat-sub" id="d-ram-sub"></div><div class="stat-bar-wrap"><div class="stat-bar bar-ok" id="d-ram-bar" style="width:0%"></div></div></div>
+          <div class="stat-card"><div class="stat-label">Disk C:</div><div class="stat-val" id="d-disk">--</div><div class="stat-sub" id="d-disk-sub"></div><div class="stat-bar-wrap"><div class="stat-bar bar-ok" id="d-disk-bar" style="width:0%"></div></div></div>
+          <div class="stat-card"><div class="stat-label">Uptime</div><div class="stat-val" id="d-uptime" style="font-size:16px">--</div></div>
+        </div>
+        <div class="dash-row">
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-microchip"></i> CPU <button class="refresh-btn" onclick="loadDashboard()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button></div>
+            <div id="cpu-info"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-server"></i> OS &amp; System</div>
+            <div id="os-info"></div>
+          </div>
+        </div>
+        <div class="dash-row">
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-hdd"></i> Storage</div>
+            <div id="disk-info"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-display"></i> GPU</div>
+            <div id="gpu-info"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processes Tab -->
+    <div class="tab-content" id="tab-proc">
+      <div id="processes">
+        <div class="proc-toolbar">
+          <input class="search-inp" id="proc-search" placeholder="Search processes…" oninput="filterProcs()" />
+          <button class="proc-action-btn btn-danger" onclick="killNonEssential()"><i class="fa-solid fa-skull"></i> Kill Non-Essential</button>
+          <button class="proc-action-btn btn-neutral" onclick="loadProcesses()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+          <span id="proc-count" style="font-size:11px;color:var(--muted);margin-left:auto;"></span>
+        </div>
+        <div class="proc-table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>PID</th><th>CPU%</th><th>RAM%</th><th>State</th><th>Action</th></tr></thead>
+            <tbody id="proc-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Files Tab -->
+    <div class="tab-content" id="tab-files">
+      <div id="files">
+        <div class="file-toolbar">
+          <button class="proc-action-btn btn-neutral" onclick="navUp()"><i class="fa-solid fa-arrow-up"></i></button>
+          <button class="proc-action-btn btn-neutral" onclick="navHome()"><i class="fa-solid fa-house"></i></button>
+          <div class="path-display" id="path-display">Loading…</div>
+          <button class="proc-action-btn btn-neutral" onclick="pickFolder()"><i class="fa-solid fa-folder-open"></i> Browse</button>
+        </div>
+        <div class="file-list" id="file-list"></div>
+      </div>
+    </div>
+
+    <!-- Network Tab -->
+    <div class="tab-content" id="tab-network">
+      <div id="network-tab">
+        <div class="dash-row" style="margin-bottom:12px;">
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-network-wired"></i> Interfaces <button class="refresh-btn" onclick="loadNetwork()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button></div>
+            <div id="net-ifaces"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><i class="fa-solid fa-plug"></i> Active Connections</div>
+            <div id="net-conns"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="tab-content" id="tab-settings">
+      <div id="settings-tab">
+        <div class="settings-section">
+          <div class="settings-title"><i class="fa-solid fa-key"></i> AI Provider</div>
+          <div class="setting-row">
+            <div><div class="setting-label">Provider</div><div class="setting-desc">Choose which AI to use</div></div>
+            <select class="setting-inp" id="settings-provider" onchange="onProviderChange()" style="width:220px;">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="gemini">Gemini (Google)</option>
+              <option value="groq">Groq (Free)</option>
+            </select>
+          </div>
+          <div class="setting-row" id="row-claude-key">
+            <div><div class="setting-label">Claude API Key</div><div class="setting-desc">Your Anthropic API key (stored locally)</div></div>
+            <input class="setting-inp" id="settings-api-key" type="password" placeholder="sk-ant-..." />
+          </div>
+          <div class="setting-row" id="row-gemini-key" style="display:none;">
+            <div><div class="setting-label">Gemini API Key</div><div class="setting-desc">Your Google AI Studio API key (stored locally)</div></div>
+            <input class="setting-inp" id="settings-gemini-key" type="password" placeholder="AIza..." />
+          </div>
+          <div class="setting-row" id="row-groq-key" style="display:none;">
+            <div><div class="setting-label">Groq API Key</div><div class="setting-desc">Your Groq API key — free at console.groq.com</div></div>
+            <input class="setting-inp" id="settings-groq-key" type="password" placeholder="gsk_..." />
+          </div>
+          <div class="setting-row" id="row-claude-model">
+            <div><div class="setting-label">Claude Model</div><div class="setting-desc">Claude model to use</div></div>
+            <select class="setting-inp" id="settings-model" style="width:220px;">
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (recommended)</option>
+              <option value="claude-opus-4-5">Claude Opus 4.5</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku (fastest)</option>
+            </select>
+          </div>
+          <div class="setting-row" id="row-gemini-model" style="display:none;">
+            <div><div class="setting-label">Gemini Model</div><div class="setting-desc">Gemini model to use</div></div>
+            <select class="setting-inp" id="settings-gemini-model" style="width:220px;">
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash (recommended)</option>
+              <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (fast)</option>
+            </select>
+          </div>
+          <div class="setting-row" id="row-groq-model" style="display:none;">
+            <div><div class="setting-label">Groq Model</div><div class="setting-desc">Groq model to use (all free)</div></div>
+            <select class="setting-inp" id="settings-groq-model" style="width:220px;">
+              <option value="llama-3.3-70b-versatile">Llama 3.3 70B (recommended)</option>
+              <option value="moonshotai/kimi-k2-instruct">Kimi K2 (best instruction following)</option>
+              <option value="llama-3.1-8b-instant">Llama 3.1 8B (fastest)</option>
+              <option value="mixtral-8x7b-32768">Mixtral 8x7B (32k context)</option>
+              <option value="gemma2-9b-it">Gemma 2 9B</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div></div>
+            <button class="save-btn" style="width:auto;padding:7px 18px;" onclick="saveSettings()">Save Settings</button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-title"><i class="fa-solid fa-shield-halved"></i> Safety</div>
+          <div class="setting-row">
+            <div><div class="setting-label">Confirm before killing processes</div><div class="setting-desc">Show a confirmation dialog before terminating</div></div>
+            <button class="toggle on" id="toggle-confirm" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Confirm before deleting files</div><div class="setting-desc">Show a confirmation dialog before deleting</div></div>
+            <button class="toggle on" id="toggle-del-confirm" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-title"><i class="fa-solid fa-trash"></i> Data</div>
+          <div class="setting-row">
+            <div><div class="setting-label">Clear all stored data</div><div class="setting-desc">Removes API key and all settings</div></div>
+            <button class="danger-btn" onclick="clearData()">Clear Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lab Tab -->
+    <div class="tab-content" id="tab-lab">
+      <div id="lab-tab">
+
+        <!-- System Prompt Editor -->
+        <div class="lab-section">
+          <div class="lab-title"><i class="fa-solid fa-brain"></i> System Prompt <span class="lab-badge badge-live">LIVE</span></div>
+          <p class="lab-note" style="margin-bottom:8px;">This is the instruction set the AI reads before every message. Edit it to change how Handler behaves — make it more aggressive, polite, focused on coding, etc.</p>
+          <textarea class="lab-textarea" id="lab-prompt" rows="12" oninput="updateCharCount()"></textarea>
+          <div class="char-counter" id="lab-char-count">0 chars</div>
+          <div class="lab-row" style="margin-top:8px;">
+            <button class="lab-btn lab-btn-primary" onclick="savePrompt()"><i class="fa-solid fa-floppy-disk"></i> Save & Apply</button>
+            <button class="lab-btn lab-btn-neutral" onclick="resetPrompt()"><i class="fa-solid fa-rotate-left"></i> Reset to Default</button>
+            <button class="lab-btn lab-btn-warn" onclick="testPrompt()"><i class="fa-solid fa-flask"></i> Test Prompt</button>
+          </div>
+        </div>
+
+        <!-- Context & Memory -->
+        <div class="lab-section">
+          <div class="lab-title"><i class="fa-solid fa-memory"></i> Context & Memory</div>
+          <div class="lab-row">
+            <span class="lab-label">Max chars in context</span>
+            <input class="lab-inp" id="lab-max-chars" type="number" min="2000" max="50000" step="1000" value="18000" style="max-width:100px;" />
+            <span style="font-size:11px;color:var(--muted)">Groq: keep ≤20000 · Claude/Gemini: up to 50000</span>
+          </div>
+          <div class="lab-row">
+            <span class="lab-label">Max chars per message</span>
+            <input class="lab-inp" id="lab-max-msg" type="number" min="500" max="10000" step="500" value="3000" style="max-width:100px;" />
+            <span style="font-size:11px;color:var(--muted)">Truncates long command outputs before they hit the AI</span>
+          </div>
+          <div class="lab-row">
+            <span class="lab-label">Command output limit</span>
+            <input class="lab-inp" id="lab-cmd-out" type="number" min="500" max="8000" step="500" value="2000" style="max-width:100px;" />
+            <span style="font-size:11px;color:var(--muted)">Max chars from shell output sent back to AI</span>
+          </div>
+          <div class="lab-row" style="margin-top:4px;">
+            <button class="lab-btn lab-btn-primary" onclick="saveContextSettings()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+            <button class="lab-btn lab-btn-danger" onclick="clearContext()" style="margin-left:4px;"><i class="fa-solid fa-broom"></i> Clear Context Now</button>
+          </div>
+          <p class="lab-note">Current context: <span id="lab-ctx-size">0</span> chars across <span id="lab-ctx-msgs">0</span> messages.</p>
+        </div>
+
+        <!-- Quick Command Chips Editor -->
+        <div class="lab-section">
+          <div class="lab-title"><i class="fa-solid fa-tags"></i> Quick Command Chips</div>
+          <p class="lab-note" style="margin-bottom:8px;">These are the clickable shortcuts at the bottom of the terminal. Add your own most-used commands here.</p>
+          <div id="lab-chips-list"></div>
+          <div class="lab-row" style="margin-top:8px;">
+            <input class="lab-inp" id="lab-chip-new" placeholder="New chip text e.g. Check RAM usage" />
+            <button class="lab-btn lab-btn-primary" onclick="addChip()"><i class="fa-solid fa-plus"></i> Add</button>
+          </div>
+          <div class="lab-row" style="margin-top:4px;">
+            <button class="lab-btn lab-btn-neutral" onclick="saveChips()"><i class="fa-solid fa-floppy-disk"></i> Save Chips</button>
+            <button class="lab-btn lab-btn-warn" onclick="resetChips()"><i class="fa-solid fa-rotate-left"></i> Reset Default</button>
+          </div>
+        </div>
+
+        <!-- Raw JS Injection (power user) -->
+        <div class="lab-section">
+          <div class="lab-title"><i class="fa-solid fa-code"></i> JS Injector <span class="lab-badge" style="background:rgba(255,71,87,.15);color:var(--danger);">ADVANCED</span></div>
+          <p class="lab-note" style="margin-bottom:8px;">Run JavaScript directly in the app. Use this to test features, patch behaviour, or add anything on the fly. Changes last until the app restarts.</p>
+          <textarea class="lab-textarea" id="lab-js" rows="5" placeholder="// Example: change the accent color&#10;document.documentElement.style.setProperty('--accent', '#ff6b6b');"></textarea>
+          <div class="lab-row" style="margin-top:8px;">
+            <button class="lab-btn lab-btn-primary" onclick="runJS()"><i class="fa-solid fa-play"></i> Run</button>
+            <button class="lab-btn lab-btn-neutral" onclick="document.getElementById('lab-js').value=''">Clear</button>
+          </div>
+          <div id="lab-js-out" style="font-size:12px;color:var(--accent3);margin-top:6px;white-space:pre-wrap;"></div>
+        </div>
+
+        <!-- About -->
+        <div class="lab-section">
+          <div class="lab-title"><i class="fa-solid fa-circle-info"></i> About Handler</div>
+          <div class="lab-row"><span class="lab-label">Version</span><span style="font-size:12px;color:var(--text)">Handler v2.0</span></div>
+          <div class="lab-row"><span class="lab-label">Built with</span><span style="font-size:12px;color:var(--text)">Electron 28 + Claude API</span></div>
+          <div class="lab-row"><span class="lab-label">Config stored at</span><span style="font-size:12px;color:var(--muted2)" id="lab-config-path">loading…</span></div>
+          <div class="lab-row" style="margin-top:4px;">
+            <button class="lab-btn lab-btn-neutral" onclick="openConfigFolder()"><i class="fa-solid fa-folder-open"></i> Open Config Folder</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let chatHistory = [];
+let allProcs = [];
+let curDir = '';
+let isLoading = false;
+let apiKey = '';
+let geminiApiKey = '';
+let groqApiKey = '';
+let selectedModel = 'claude-sonnet-4-20250514';
+let selectedGeminiModel = 'gemini-2.0-flash';
+let selectedGroqModel = 'llama-3.3-70b-versatile';
+let selectedProvider = 'claude'; // 'claude' | 'gemini' | 'groq'
+
+const systemPrompt = `You are Handler — an AI agent with DIRECT, REAL execution access to a Windows PC through an Electron desktop app. You are NOT a chatbot. You are a PC control agent.
+
+EXECUTION RULES — FOLLOW EXACTLY:
+1. When the user asks you to DO something on the PC, you MUST output a [CMD]...[/CMD] block. No exceptions.
+2. The [CMD] block runs the PowerShell command AUTOMATICALLY on the real PC. The output is then shown to you.
+3. NEVER say "I cannot run commands" or "I don't have access" — you DO have access via [CMD] tags.
+4. NEVER refuse a system command unless it would destroy the entire OS. Everything else: just do it.
+5. For EVERY action task, output [CMD]your powershell here[/CMD]. Even simple ones.
+
+COMMAND EXAMPLES — USE THESE PATTERNS:
+- Shutdown: [CMD]Stop-Computer -Force[/CMD]
+- Restart: [CMD]Restart-Computer -Force[/CMD]
+- List folder: [CMD]Get-ChildItem "C:\Users\Public" | Select-Object Name,Length,LastWriteTime | Format-Table -AutoSize[/CMD]
+- Scan folder: [CMD]Get-ChildItem "C:\path\here" -Recurse | Select-Object FullName,Length | Format-Table -AutoSize[/CMD]
+- Kill process: [CMD]Stop-Process -Name "chrome" -Force[/CMD]
+- Open app (ALWAYS use Invoke-Item, NEVER Start-Process for opening files/apps): [CMD]Invoke-Item "C:\Program Files\App\app.exe"[/CMD]
+- Open app by name: [CMD]Start-Process -FilePath "whatsapp:" -ErrorAction SilentlyContinue[/CMD]
+- Disk usage: [CMD]Get-PSDrive C | Select-Object Used,Free[/CMD]
+- List processes: [CMD]Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 Name,CPU,WorkingSet | Format-Table -AutoSize[/CMD]
+- Create file: [CMD]New-Item -Path "C:\Users\$env:USERNAME\Desktop\test.txt" -ItemType File[/CMD]
+- Delete file: [CMD]Remove-Item "C:\path\to\file" -Force[/CMD]
+- Check IP: [CMD]ipconfig /all[/CMD]
+- Speed test: [CMD]Invoke-RestMethod -Uri "https://api.ipify.org?format=json"[/CMD]
+- Startup apps: [CMD]Get-CimInstance Win32_StartupCommand | Select-Object Name,Command | Format-Table -AutoSize[/CMD]
+- Temp cleanup: [CMD]Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "Done"[/CMD]
+- Services: [CMD]Get-Service | Where-Object Status -eq "Running" | Select-Object Name,DisplayName | Format-Table -AutoSize[/CMD]
+
+RESPONSE FORMAT:
+- Action tasks: Short 1-line explanation + [CMD]command[/CMD]
+- Info/question tasks: Answer directly in text, no CMD needed
+- After seeing command output: Summarize results clearly for the user
+- Keep responses SHORT. No long essays. Act, don't explain endlessly.
+
+CRITICAL RULES:
+- "list X" / "show X" / "tell me X" / "what are X" = TEXT answer, never a shell command
+- "list system prompts" / "show your instructions" = answer in text, NO [CMD] tag ever
+- "shutdown my pc" / "restart my pc" = only run [CMD]Stop-Computer[/CMD] when user says this exact phrase alone
+- NEVER run Stop-Computer or Restart-Computer from vague or ambiguous input
+- To open apps/files ALWAYS use Invoke-Item "path" — NEVER use Start-Process with a file path as it fails on paths with spaces
+- "kill X" / "delete X" / "create X" / "run X" = use [CMD] tags`;
+function trimHistory(history) {
+  // Smart trim: keep last N messages but cap total chars to avoid token limit errors
+  // Groq has ~6000 token limit per request for context, ~4 chars per token = ~24000 chars
+  const MAX_CHARS = 18000;
+  const MIN_MESSAGES = 2; // always keep at least last user+assistant pair
+
+  // Start from most recent, add until we hit char limit
+  let total = 0;
+  const kept = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msgLen = (history[i].content || '').length;
+    // Truncate individual messages that are too long (e.g. huge command outputs)
+    const content = msgLen > 3000 ? history[i].content.slice(0, 3000) + '...[truncated]' : history[i].content;
+    total += content.length;
+    if (total > MAX_CHARS && kept.length >= MIN_MESSAGES) break;
+    kept.unshift({ role: history[i].role, content });
+  }
+  return kept;
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadApiKey();
+  updateClock();
+  setInterval(updateClock, 1000);
+  setInterval(updateTbStats, 3000);
+  updateTbStats();
+  addMsg('sys', '⚡ Handler v2.0 initialized. System access: FULL. Type a command or ask anything about your PC.');
+  // Load lab settings silently
+  pcAPI.storeGet('labPrompt').then(v => { if(v) labCustomPrompt = v; });
+  pcAPI.storeGet('labMaxChars').then(v => { if(v) labMaxChars = v; });
+  pcAPI.storeGet('labMaxMsg').then(v => { if(v) labMaxMsg = v; });
+  pcAPI.storeGet('labCmdOut').then(v => { if(v) labCmdOut = v; });
+  pcAPI.storeGet('labChips').then(v => { if(v) { labCustomChips = v; renderTerminalChips(v); } });
+  document.getElementById('cmd-input').focus();
+  document.getElementById('cmd-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCmd(); }
+  });
+});
+
+// ── API Key ────────────────────────────────────────────────────────
+async function loadApiKey() {
+  apiKey = await pcAPI.storeGet('apiKey') || '';
+  geminiApiKey = await pcAPI.storeGet('geminiApiKey') || '';
+  groqApiKey = await pcAPI.storeGet('groqApiKey') || '';
+  selectedProvider = await pcAPI.storeGet('provider') || 'claude';
+  selectedModel = await pcAPI.storeGet('model') || 'claude-sonnet-4-20250514';
+  selectedGeminiModel = await pcAPI.storeGet('geminiModel') || 'gemini-2.0-flash';
+  selectedGroqModel = await pcAPI.storeGet('groqModel') || 'llama-3.3-70b-versatile';
+
+  if (apiKey) { document.getElementById('api-key-inp').value = apiKey; document.getElementById('settings-api-key').value = apiKey; }
+  if (geminiApiKey) document.getElementById('settings-gemini-key').value = geminiApiKey;
+  if (groqApiKey) document.getElementById('settings-groq-key').value = groqApiKey;
+
+  document.getElementById('sidebar-provider').value = selectedProvider;
+  document.getElementById('settings-provider').value = selectedProvider;
+  updateProviderUI();
+
+  const sel = document.getElementById('settings-model');
+  if (sel) sel.value = selectedModel;
+  const gsel = document.getElementById('settings-gemini-model');
+  if (gsel) gsel.value = selectedGeminiModel;
+  const qsel = document.getElementById('settings-groq-model');
+  if (qsel) qsel.value = selectedGroqModel;
+
+  const activeKey = selectedProvider === 'gemini' ? geminiApiKey : selectedProvider === 'groq' ? groqApiKey : apiKey;
+  if (activeKey) document.getElementById('api-dot').classList.add('ok');
+}
+
+function updateProviderUI() {
+  const isClaude = selectedProvider === 'claude';
+  const isGemini = selectedProvider === 'gemini';
+  const isGroq = selectedProvider === 'groq';
+  // Sidebar label & placeholder
+  document.getElementById('sidebar-provider-label').textContent = isGemini ? 'Gemini API' : isGroq ? 'Groq API (Free)' : 'Claude API';
+  document.getElementById('api-key-inp').placeholder = isGemini ? 'AIza...' : isGroq ? 'gsk_...' : 'sk-ant-...';
+  // Settings rows
+  document.getElementById('row-claude-key').style.display = isClaude ? '' : 'none';
+  document.getElementById('row-gemini-key').style.display = isGemini ? '' : 'none';
+  document.getElementById('row-groq-key').style.display = isGroq ? '' : 'none';
+  document.getElementById('row-claude-model').style.display = isClaude ? '' : 'none';
+  document.getElementById('row-gemini-model').style.display = isGemini ? '' : 'none';
+  document.getElementById('row-groq-model').style.display = isGroq ? '' : 'none';
+}
+
+function onProviderChange() {
+  selectedProvider = document.getElementById('settings-provider').value;
+  document.getElementById('sidebar-provider').value = selectedProvider;
+  updateProviderUI();
+}
+
+function onSidebarProviderChange() {
+  selectedProvider = document.getElementById('sidebar-provider').value;
+  document.getElementById('settings-provider').value = selectedProvider;
+  updateProviderUI();
+}
+
+async function saveApiKey() {
+  const val = document.getElementById('api-key-inp').value.trim();
+  if (!val) return;
+  if (selectedProvider === 'gemini') {
+    geminiApiKey = val; await pcAPI.storeSet('geminiApiKey', val);
+    document.getElementById('settings-gemini-key').value = val;
+    addMsg('sys', '✓ Gemini API key saved. Gemini AI is ready.');
+  } else if (selectedProvider === 'groq') {
+    groqApiKey = val; await pcAPI.storeSet('groqApiKey', val);
+    document.getElementById('settings-groq-key').value = val;
+    addMsg('sys', '✓ Groq API key saved. Groq AI is ready.');
+  } else {
+    apiKey = val; await pcAPI.storeSet('apiKey', val);
+    document.getElementById('settings-api-key').value = val;
+    addMsg('sys', '✓ Claude API key saved. Claude AI is ready.');
+  }
+  await pcAPI.storeSet('provider', selectedProvider);
+  document.getElementById('api-dot').classList.add('ok');
+}
+
+async function saveSettings() {
+  const provider = document.getElementById('settings-provider').value;
+  const claudeKey = document.getElementById('settings-api-key').value.trim();
+  const geminiKey = document.getElementById('settings-gemini-key').value.trim();
+  const groqKey = document.getElementById('settings-groq-key').value.trim();
+  const model = document.getElementById('settings-model').value;
+  const geminiModel = document.getElementById('settings-gemini-model').value;
+  const groqModel = document.getElementById('settings-groq-model').value;
+
+  selectedProvider = provider;
+  await pcAPI.storeSet('provider', provider);
+  document.getElementById('sidebar-provider').value = provider;
+
+  if (claudeKey) { apiKey = claudeKey; await pcAPI.storeSet('apiKey', claudeKey); document.getElementById('api-key-inp').value = claudeKey; }
+  if (geminiKey) { geminiApiKey = geminiKey; await pcAPI.storeSet('geminiApiKey', geminiKey); }
+  if (groqKey) { groqApiKey = groqKey; await pcAPI.storeSet('groqApiKey', groqKey); }
+
+  selectedModel = model; await pcAPI.storeSet('model', model);
+  selectedGeminiModel = geminiModel; await pcAPI.storeSet('geminiModel', geminiModel);
+  selectedGroqModel = groqModel; await pcAPI.storeSet('groqModel', groqModel);
+
+  updateProviderUI();
+  const activeKey = provider === 'gemini' ? geminiApiKey : provider === 'groq' ? groqApiKey : apiKey;
+  if (activeKey) document.getElementById('api-dot').classList.add('ok');
+  const label = provider === 'gemini' ? 'Gemini' : provider === 'groq' ? 'Groq' : 'Claude';
+  addMsg('sys', `✓ Settings saved. Using ${label}.`);
+}
+
+async function clearData() {
+  if (!confirm('Clear all stored data?')) return;
+  apiKey = ''; geminiApiKey = ''; groqApiKey = '';
+  document.getElementById('api-key-inp').value = '';
+  document.getElementById('settings-api-key').value = '';
+  document.getElementById('settings-gemini-key').value = '';
+  document.getElementById('settings-groq-key').value = '';
+  document.getElementById('api-dot').classList.remove('ok');
+  // Actually wipe from persistent storage
+  for (const key of ['apiKey', 'geminiApiKey', 'groqApiKey', 'provider', 'model', 'geminiModel', 'groqModel']) {
+    await pcAPI.storeSet(key, '');
+  }
+  addMsg('sys', 'All data cleared.');
+}
+
+// ── Clock & stats ──────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('tb-time').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+async function updateTbStats() {
+  try {
+    const r = await pcAPI.getCpuLoad();
+    if (r.load) {
+      const cpu = Math.round(r.load.currentLoad);
+      document.getElementById('tb-cpu').textContent = `CPU: ${cpu}%`;
+    }
+    if (r.mem) {
+      const pct = Math.round((r.mem.used/r.mem.total)*100);
+      document.getElementById('tb-ram').textContent = `RAM: ${pct}%`;
+    }
+  } catch(e) {}
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'proc') loadProcesses();
+  if (name === 'files') loadFiles(curDir);
+  if (name === 'network') loadNetwork();
+  if (name === 'lab') initLab();
+  if (name === 'terminal') updateCtxStats && updateCtxStats();
+}
+
+// ── Terminal / AI ──────────────────────────────────────────────────
+function addMsg(role, text, actions) {
+  const out = document.getElementById('terminal-output');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const now = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const labels = {user:'YOU',ai:'AI',sys:'SYS',error:'ERR',cmd:'CMD'};
+  div.innerHTML = `<div class="msg-hdr"><span class="badge badge-${role}">${labels[role]||role.toUpperCase()}</span><span>${now}</span></div>`;
+  const body = document.createElement('div');
+  body.className = `msg-body ${role}-body`;
+  body.textContent = text;
+  div.appendChild(body);
+  if (actions) {
+    const actRow = document.createElement('div');
+    actRow.className = 'msg-actions';
+    actions.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'msg-act-btn';
+      b.textContent = a.label;
+      b.onclick = a.fn;
+      actRow.appendChild(b);
+    });
+    div.appendChild(actRow);
+  }
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+  return body;
+}
+
+function addTyping() {
+  const out = document.getElementById('terminal-output');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.id = 'typing-indicator';
+  div.innerHTML = `<div class="msg-hdr"><span class="badge badge-ai">AI</span><span>thinking…</span></div><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>`;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+
+function removeTyping() { const t = document.getElementById('typing-indicator'); if(t) t.remove(); }
+
+function quickCmd(text) { document.getElementById('cmd-input').value = text; sendCmd(); }
+
+async function sendCmd() {
+  const inp = document.getElementById('cmd-input');
+  const text = inp.value.trim();
+  if (!text || isLoading) return;
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+  inp.value = '';
+  addMsg('user', text);
+  chatHistory.push({role:'user',content:text});
+
+  if (!apiKey && selectedProvider === 'claude') {
+    addMsg('error', '⚠ No Claude API key set. Add your Anthropic API key in the sidebar or Settings tab.');
+    isLoading = false; document.getElementById('send-btn').disabled = false; return;
+  }
+  if (!geminiApiKey && selectedProvider === 'gemini') {
+    addMsg('error', '⚠ No Gemini API key set. Add your Google AI Studio API key in the sidebar or Settings tab.');
+    isLoading = false; document.getElementById('send-btn').disabled = false; return;
+  }
+  if (!groqApiKey && selectedProvider === 'groq') {
+    addMsg('error', '⚠ No Groq API key set. Get a free key at console.groq.com and add it in Settings.');
+    isLoading = false; document.getElementById('send-btn').disabled = false; return;
+  }
+
+  addTyping();
+  let result;
+  const trimmed = trimHistory(chatHistory);
+  const activePrompt = getSystemPrompt();
+  if (selectedProvider === 'gemini') {
+    result = await pcAPI.geminiAPI({ messages: trimmed, systemPrompt: activePrompt, apiKey: geminiApiKey, model: selectedGeminiModel });
+  } else if (selectedProvider === 'groq') {
+    result = await pcAPI.groqAPI({ messages: trimmed, systemPrompt: activePrompt, apiKey: groqApiKey, model: selectedGroqModel });
+  } else {
+    result = await pcAPI.claudeAPI({ messages: trimmed, systemPrompt: activePrompt, apiKey, model: selectedModel });
+  }
+  removeTyping();
+
+  if (result.error) {
+    const isTimeout = result.error.toLowerCase().includes('timeout') || result.error.includes('60s');
+    const errMsg = isTimeout
+      ? 'Command timed out (took over 60s). Try a simpler command, or ask the AI to break it into steps.'
+      : 'API Error: ' + result.error;
+    addMsg('error', errMsg);
+    chatHistory.pop();
+  } else {
+    const reply = result.content;
+    chatHistory.push({role:'assistant',content:reply});
+
+    // Auto-execute embedded commands
+    const cmdMatch = reply.match(/\[CMD\]([\s\S]*?)\[\/CMD\]/g);
+    const cleanReply = reply.replace(/\[CMD\][\s\S]*?\[\/CMD\]/g, '').trim();
+    if (cleanReply) addMsg('ai', cleanReply);
+
+    if (cmdMatch) {
+      for (const block of cmdMatch) {
+        const cmd = block.replace('[CMD]','').replace('[/CMD]','').trim();
+
+        // ── Safety gate: intercept destructive commands ──────────────
+        const safetyVerdict = checkCommandSafety(cmd);
+        if (safetyVerdict.dangerous) {
+          // Show a warning with Approve / Block buttons — don't run yet
+          const msgBody = addMsg('cmd', `⚠ DANGEROUS COMMAND INTERCEPTED\n\nThe AI wants to run:\n${cmd}\n\nReason: ${safetyVerdict.reason}`, [
+            { label: '✓ Yes, run it', fn: async () => { await executeCmd(cmd); } },
+            { label: '✗ Block', fn: () => { addMsg('sys', '🛡 Command blocked by safety gate.'); chatHistory.push({role:'user', content:'Command was blocked by the user for safety reasons. Do NOT retry this command.'}); } }
+          ]);
+          continue; // don't auto-run
+        }
+
+        // Safe command — run immediately
+        await executeCmd(cmd);
+      }
+    }
+  }
+
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+  inp.focus();
+}
+
+function clearLog() { chatHistory = []; document.getElementById('terminal-output').innerHTML = ''; addMsg('sys', 'Log cleared.'); }
+
+function clearContext() {
+  // Clears AI memory without clearing the visible log — fixes "prompt too big" errors
+  chatHistory = [];
+  addMsg('sys', '🔄 AI context cleared. Memory reset — the AI starts fresh from your next message. (Log kept for your reference)');
+}
+
+// ── Safety gate ────────────────────────────────────────────────────
+const DANGEROUS_PATTERNS = [
+  { pattern: /Stop-Computer|shutdown\s+\/s|shutdown\.exe/i,        reason: 'This will SHUT DOWN your PC' },
+  { pattern: /Restart-Computer|shutdown\s+\/r/i,                   reason: 'This will RESTART your PC' },
+  { pattern: /Format-Volume|Format-Disk|diskpart/i,                reason: 'This will FORMAT a drive (wipes all data)' },
+  { pattern: /Remove-Item\s+[A-Z]:\\\s*(-Recurse|-Force|-rf)/i,  reason: 'This deletes an entire drive root' },
+  { pattern: /Remove-Item\s+.*\\Windows/i,                       reason: 'This deletes Windows system files' },
+  { pattern: /Remove-Item\s+.*\\System32/i,                      reason: 'This deletes System32' },
+  { pattern: /del\s+\/[sf].*[A-Z]:\\\*/i,                        reason: 'This bulk-deletes from a drive root' },
+  { pattern: /reg\s+delete.*\\(HKLM|HKEY_LOCAL_MACHINE)/i,      reason: 'This deletes system registry keys' },
+  { pattern: /Disable-WindowsOptionalFeature|bcdedit/i,            reason: 'This modifies Windows boot settings' },
+  { pattern: /net\s+user\s+.*\s+\/delete/i,                        reason: 'This deletes a Windows user account' },
+  { pattern: /Set-ExecutionPolicy\s+Unrestricted/i,                reason: 'This disables PowerShell security policy' },
+];
+
+function checkCommandSafety(cmd) {
+  for (const { pattern, reason } of DANGEROUS_PATTERNS) {
+    if (pattern.test(cmd)) return { dangerous: true, reason };
+  }
+  return { dangerous: false };
+}
+
+// ── Execute a single command and feed output to AI ──────────────────
+async function executeCmd(cmd) {
+  addMsg('cmd', '▶ Running: ' + cmd);
+  const res = await pcAPI.runCommand(cmd);
+  const fullOut = (res.stdout || '') + (res.stderr ? '\nSTDERR: '+res.stderr : '');
+  const displayOut = fullOut || '(no output)';
+  addMsg('sys', displayOut, [{label:'📋 Copy', fn:()=>navigator.clipboard.writeText(displayOut)}]);
+  const truncatedOut = fullOut.length > labCmdOut
+    ? fullOut.slice(0, labCmdOut) + '\n...[output truncated to save space]'
+    : fullOut;
+  chatHistory.push({role:'user', content:`Command output (exit code ${res.code}):\n${truncatedOut || '(no output)'}`});
+}
+
+function exportLog() {
+  const msgs = [];
+  document.querySelectorAll('.msg').forEach(m => {
+    const badge = m.querySelector('.badge')?.textContent || '';
+    const body = m.querySelector('.msg-body')?.textContent || '';
+    msgs.push(`[${badge}]\n${body}`);
+  });
+  const blob = new Blob([msgs.join('\n\n---\n\n')],{type:'text/plain'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'handler-log.txt'; a.click();
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────
+async function loadDashboard() {
+  const data = await pcAPI.getSystemInfo();
+  if (data.error) return;
+  const {cpu, mem, osInfo, disk, graphics, raw_os} = data;
+
+  // Stats
+  if (mem) {
+    const ramPct = Math.round((mem.used/mem.total)*100);
+    const ramUsed = (mem.used/1073741824).toFixed(1);
+    const ramTotal = (mem.total/1073741824).toFixed(1);
+    document.getElementById('d-ram').textContent = ramPct + '%';
+    document.getElementById('d-ram-sub').textContent = `${ramUsed} / ${ramTotal} GB`;
+    const bar = document.getElementById('d-ram-bar');
+    bar.style.width = ramPct + '%';
+    bar.className = `stat-bar ${ramPct>85?'bar-danger':ramPct>65?'bar-warn':'bar-ok'}`;
+  }
+
+  if (disk && disk.length) {
+    const c = disk.find(d=>d.mount==='C:'||d.fs==='/')||disk[0];
+    const pct = Math.round(c.use);
+    const used = (c.used/1073741824).toFixed(0);
+    const total = (c.size/1073741824).toFixed(0);
+    document.getElementById('d-disk').textContent = pct + '%';
+    document.getElementById('d-disk-sub').textContent = `${used} / ${total} GB`;
+    const bar = document.getElementById('d-disk-bar');
+    bar.style.width = pct + '%';
+    bar.className = `stat-bar ${pct>90?'bar-danger':pct>75?'bar-warn':'bar-ok'}`;
+  }
+
+  if (raw_os) {
+    const upH = Math.floor(raw_os.uptime/3600);
+    const upM = Math.floor((raw_os.uptime%3600)/60);
+    document.getElementById('d-uptime').textContent = `${upH}h ${upM}m`;
+  }
+
+  // CPU info
+  if (cpu) {
+    document.getElementById('cpu-info').innerHTML = infoRows([
+      ['Brand', cpu.brand],['Manufacturer', cpu.manufacturer],
+      ['Cores', `${cpu.physicalCores} physical / ${cpu.cores} logical`],
+      ['Speed', `${cpu.speed} GHz (max ${cpu.speedMax} GHz)`],
+      ['Cache L1/L2/L3', `${cpu.cache?.l1d||'-'} / ${cpu.cache?.l2||'-'} / ${cpu.cache?.l3||'-'}`]
+    ]);
+    document.getElementById('d-cpu').textContent = cpu.brand.split(' ').slice(-1)[0];
+  }
+
+  // OS info
+  if (osInfo) {
+    document.getElementById('os-info').innerHTML = infoRows([
+      ['OS', osInfo.distro],['Version', osInfo.release],
+      ['Arch', osInfo.arch],['Hostname', osInfo.hostname],
+      ['Platform', osInfo.platform]
+    ]);
+  }
+
+  // Disk info
+  if (disk) {
+    document.getElementById('disk-info').innerHTML = disk.slice(0,4).map(d=>
+      `<div class="info-row"><span class="info-key">${d.mount||d.fs}</span><span class="info-val">${(d.used/1073741824).toFixed(1)}GB / ${(d.size/1073741824).toFixed(1)}GB (${Math.round(d.use)}%)</span></div>`
+    ).join('');
+  }
+
+  // GPU
+  if (graphics && graphics.controllers) {
+    document.getElementById('gpu-info').innerHTML = graphics.controllers.slice(0,2).map(g=>
+      infoRows([['Name',g.model],['VRAM',g.vram?g.vram+'MB':'Unknown'],['Vendor',g.vendor||'—'],['Driver',g.driverVersion||'—']])
+    ).join('<hr style="border-color:var(--b1);margin:8px 0;">');
+  }
+}
+
+function infoRows(pairs) {
+  return pairs.map(([k,v])=>`<div class="info-row"><span class="info-key">${k}</span><span class="info-val">${v||'—'}</span></div>`).join('');
+}
+
+// ── Processes ──────────────────────────────────────────────────────
+async function loadProcesses() {
+  document.getElementById('proc-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Loading…</td></tr>';
+  allProcs = await pcAPI.getProcesses();
+  if (allProcs.error) { document.getElementById('proc-tbody').innerHTML = `<tr><td colspan="6" style="color:var(--danger)">${allProcs.error}</td></tr>`; return; }
+  renderProcs(allProcs);
+}
+
+function renderProcs(procs) {
+  document.getElementById('proc-count').textContent = `${procs.length} processes`;
+  document.getElementById('proc-tbody').innerHTML = procs.map(p => {
+    const cpu = parseFloat(p.cpu)||0;
+    const cls = cpu>10?'cpu-high':cpu>2?'cpu-med':'cpu-low';
+    return `<tr>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.path}">${p.name}</td>
+      <td>${p.pid}</td>
+      <td><span class="cpu-pill ${cls}">${cpu.toFixed(1)}%</span></td>
+      <td>${(p.mem||0).toFixed(1)}%</td>
+      <td style="color:var(--muted2)">${p.state||'—'}</td>
+      <td><button class="kill-btn" onclick="killPid(${p.pid},'${p.name.replace(/'/g,"\\'")}')">Kill</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterProcs() {
+  const q = document.getElementById('proc-search').value.toLowerCase();
+  renderProcs(allProcs.filter(p => p.name.toLowerCase().includes(q)));
+}
+
+async function killPid(pid, name) {
+  if (!confirm(`Kill process "${name}" (PID ${pid})?`)) return;
+  const r = await pcAPI.killProcess(pid);
+  addMsg('sys', r.success ? `✓ Killed ${name} (${pid})` : `✗ Failed to kill ${name}: ${r.error}`);
+  loadProcesses();
+}
+
+async function killNonEssential() {
+  if (!confirm('Kill all non-essential processes? (apps, browsers, background services)')) return;
+  addMsg('sys', 'Killing non-essential processes…');
+  const r = await pcAPI.killNonEssential();
+  if (r.error) { addMsg('error', r.error); return; }
+  const killed = r.results.filter(x=>x.killed).map(x=>x.name).join(', ');
+  addMsg('sys', `✓ Killed ${r.count} processes: ${killed||'none found'}`);
+  loadProcesses();
+}
+
+// ── Files ──────────────────────────────────────────────────────────
+async function loadFiles(dir) {
+  const data = await pcAPI.listDir(dir);
+  if (data.error) { document.getElementById('file-list').innerHTML = `<div style="color:var(--danger);padding:16px">${data.error}</div>`; return; }
+  curDir = data.path;
+  document.getElementById('path-display').textContent = data.path;
+  const list = document.getElementById('file-list');
+  if (!data.entries.length) { list.innerHTML = '<div style="color:var(--muted);padding:16px">Empty directory</div>'; return; }
+  list.innerHTML = data.entries.map(e => {
+    const size = e.size != null ? formatBytes(e.size) : '';
+    const icon = e.isDir ? 'fa-folder dir' : 'fa-file file';
+    return `<div class="file-item" ondblclick="${e.isDir ? `loadFiles('${escapePath(curDir+'/'+e.name)}')` : `openFile('${escapePath(curDir+'/'+e.name)}')`}">
+      <i class="fa-solid ${icon} file-icon"></i>
+      <span class="file-name">${e.name}</span>
+      <span class="file-size">${size}</span>
+      <div class="file-actions">
+        <button class="fa-btn" onclick="openFile('${escapePath(curDir+'/'+e.name)}')" title="Open"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+        <button class="fa-btn del" onclick="deleteFile('${escapePath(curDir+'/'+e.name)}','${e.name.replace(/'/g,"\\'")}','${e.isDir}')" title="Delete"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escapePath(p) { return p.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function navUp() {
+  const parts = curDir.replace(/\\/g,'/').split('/').filter(Boolean);
+  if (parts.length > 1) { parts.pop(); loadFiles(parts.join('/') || '/'); }
+}
+function navHome() { loadFiles(''); }
+
+async function pickFolder() {
+  const r = await pcAPI.showOpenDialog();
+  if (!r.canceled && r.filePaths.length) loadFiles(r.filePaths[0]);
+}
+
+async function openFile(path) { await pcAPI.openFile(path); }
+
+async function deleteFile(path, name, isDir) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const r = await pcAPI.deleteFile(path);
+  addMsg('sys', r.success ? `✓ Deleted ${name}` : `✗ Failed: ${r.error}`);
+  loadFiles(curDir);
+}
+
+function formatBytes(b) {
+  if (b === 0) return '0 B';
+  const k = 1024, s = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(b)/Math.log(k));
+  return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ' ' + s[i];
+}
+
+// ── Network ────────────────────────────────────────────────────────
+async function loadNetwork() {
+  const data = await pcAPI.getNetworkStats();
+  if (data.error) { document.getElementById('net-ifaces').innerHTML = `<div style="color:var(--danger)">${data.error}</div>`; return; }
+
+  if (data.ifaces) {
+    document.getElementById('net-ifaces').innerHTML = (Array.isArray(data.ifaces)?data.ifaces:Object.values(data.ifaces))
+      .filter(i=>i.ip4)
+      .map(i => infoRows([['Name',i.iface||i.ifaceName],['IP',i.ip4],['MAC',i.mac],['Speed',i.speed?i.speed+'Mbps':'—'],['Type',i.type||'—']]))
+      .join('<hr style="border-color:var(--b1);margin:8px 0;">');
+  }
+
+  if (data.connections) {
+    document.getElementById('net-conns').innerHTML = data.connections.slice(0,15).map(c=>
+      `<div class="info-row"><span class="info-key" style="color:var(--muted2)">${c.localAddress}:${c.localPort}</span><span class="info-val" style="font-size:11px">${c.peerAddress||'—'}:${c.peerPort||''} <span style="color:var(--accent3)">${c.state||''}</span></span></div>`
+    ).join('');
+  }
+}
+
+// Initial CPU load update
+updateTbStats();
+
+
+// ── Lab dynamic overrides (set by Lab tab) ─────────────────────────
+let labMaxChars = 18000;
+let labMaxMsg = 3000;
+let labCmdOut = 2000;
+let labCustomPrompt = null; // null = use default
+let labCustomChips = null;  // null = use default
+
+const DEFAULT_CHIPS = [
+  'Kill all non-essential processes',
+  'Show full system info',
+  'Run disk cleanup',
+  'Show active network connections',
+  'Write a PowerShell backup script',
+  'Check Windows updates'
+];
+
+// Override trimHistory to use lab values
+const _origTrimHistory = trimHistory;
+function trimHistory(history) {
+  const MAX_CHARS = labMaxChars;
+  const MIN_MESSAGES = 2;
+  let total = 0;
+  const kept = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msgLen = (history[i].content || '').length;
+    const content = msgLen > labMaxMsg ? history[i].content.slice(0, labMaxMsg) + '...[truncated]' : history[i].content;
+    total += content.length;
+    if (total > MAX_CHARS && kept.length >= MIN_MESSAGES) break;
+    kept.unshift({ role: history[i].role, content });
+  }
+  return kept;
+}
+
+// Get active system prompt (custom or default)
+function getSystemPrompt() {
+  return labCustomPrompt || systemPrompt;
+}
+
+// ── Lab tab functions ───────────────────────────────────────────────
+async function initLab() {
+  // Load saved values
+  const savedPrompt = await pcAPI.storeGet('labPrompt');
+  const savedMaxChars = await pcAPI.storeGet('labMaxChars');
+  const savedMaxMsg = await pcAPI.storeGet('labMaxMsg');
+  const savedCmdOut = await pcAPI.storeGet('labCmdOut');
+  const savedChips = await pcAPI.storeGet('labChips');
+
+  if (savedPrompt) { labCustomPrompt = savedPrompt; }
+  if (savedMaxChars) { labMaxChars = savedMaxChars; document.getElementById('lab-max-chars').value = savedMaxChars; }
+  if (savedMaxMsg) { labMaxMsg = savedMaxMsg; document.getElementById('lab-max-msg').value = savedMaxMsg; }
+  if (savedCmdOut) { labCmdOut = savedCmdOut; document.getElementById('lab-cmd-out').value = savedCmdOut; }
+  if (savedChips) { labCustomChips = savedChips; }
+
+  document.getElementById('lab-prompt').value = labCustomPrompt || systemPrompt;
+  updateCharCount();
+  renderLabChips();
+  updateCtxStats();
+
+  // Config path
+  try {
+    const r = await pcAPI.runCommand('echo $env:APPDATA');
+    if (r.stdout) document.getElementById('lab-config-path').textContent = r.stdout.trim() + '\handler\config.json';
+  } catch(e) {}
+}
+
+function updateCharCount() {
+  const txt = document.getElementById('lab-prompt').value;
+  const el = document.getElementById('lab-char-count');
+  const tokens = Math.round(txt.length / 4);
+  el.textContent = `${txt.length} chars (~${tokens} tokens)`;
+  el.style.color = tokens > 1500 ? 'var(--warn)' : tokens > 2500 ? 'var(--danger)' : 'var(--muted)';
+}
+
+function updateCtxStats() {
+  const totalChars = chatHistory.reduce((s, m) => s + (m.content||'').length, 0);
+  const ctxEl = document.getElementById('lab-ctx-size');
+  const msgEl = document.getElementById('lab-ctx-msgs');
+  if (ctxEl) ctxEl.textContent = totalChars.toLocaleString();
+  if (msgEl) msgEl.textContent = chatHistory.length;
+}
+
+async function savePrompt() {
+  const val = document.getElementById('lab-prompt').value.trim();
+  if (!val) { addMsg('sys', '⚠ Prompt cannot be empty.'); return; }
+  labCustomPrompt = val;
+  await pcAPI.storeSet('labPrompt', val);
+  addMsg('sys', '✓ System prompt saved and applied. AI will use it from your next message.');
+  showTab('terminal', document.querySelector('.nav-item'));
+}
+
+async function resetPrompt() {
+  if (!confirm('Reset to the default system prompt? Your custom prompt will be lost.')) return;
+  labCustomPrompt = null;
+  await pcAPI.storeSet('labPrompt', null);
+  document.getElementById('lab-prompt').value = systemPrompt;
+  updateCharCount();
+  addMsg('sys', '✓ System prompt reset to default.');
+}
+
+function testPrompt() {
+  const val = document.getElementById('lab-prompt').value.trim();
+  labCustomPrompt = val; // apply temporarily
+  showTab('terminal', document.querySelector('.nav-item.active'));
+  document.getElementById('cmd-input').value = 'Hello, what can you do?';
+  document.getElementById('cmd-input').focus();
+  addMsg('sys', '🧪 Prompt applied temporarily. Send a message to test it. Use Save to make it permanent.');
+}
+
+async function saveContextSettings() {
+  labMaxChars = parseInt(document.getElementById('lab-max-chars').value) || 18000;
+  labMaxMsg = parseInt(document.getElementById('lab-max-msg').value) || 3000;
+  labCmdOut = parseInt(document.getElementById('lab-cmd-out').value) || 2000;
+  await pcAPI.storeSet('labMaxChars', labMaxChars);
+  await pcAPI.storeSet('labMaxMsg', labMaxMsg);
+  await pcAPI.storeSet('labCmdOut', labCmdOut);
+  addMsg('sys', `✓ Context settings saved. Max: ${labMaxChars} chars, per-msg: ${labMaxMsg}, cmd out: ${labCmdOut}`);
+}
+
+function renderLabChips() {
+  const chips = labCustomChips || DEFAULT_CHIPS;
+  const el = document.getElementById('lab-chips-list');
+  if (!el) return;
+  el.innerHTML = chips.map((c, i) => `
+    <div class="lab-row" style="margin-bottom:4px;">
+      <input class="lab-inp" id="lab-chip-${i}" value="${c.replace(/"/g,'&quot;')}" />
+      <button class="lab-btn lab-btn-danger" onclick="removeChip(${i})" style="padding:4px 10px;">✕</button>
+    </div>`).join('');
+  // Also update the actual chips in terminal
+  renderTerminalChips(chips);
+}
+
+function addChip() {
+  const inp = document.getElementById('lab-chip-new');
+  const val = inp.value.trim();
+  if (!val) return;
+  const chips = labCustomChips || [...DEFAULT_CHIPS];
+  chips.push(val);
+  labCustomChips = chips;
+  inp.value = '';
+  renderLabChips();
+}
+
+function removeChip(idx) {
+  const chips = labCustomChips || [...DEFAULT_CHIPS];
+  chips.splice(idx, 1);
+  labCustomChips = chips;
+  renderLabChips();
+}
+
+async function saveChips() {
+  // Read current values from inputs
+  const chips = [];
+  let i = 0;
+  while (document.getElementById('lab-chip-' + i)) {
+    chips.push(document.getElementById('lab-chip-' + i).value.trim());
+    i++;
+  }
+  labCustomChips = chips.filter(Boolean);
+  await pcAPI.storeSet('labChips', labCustomChips);
+  renderTerminalChips(labCustomChips);
+  addMsg('sys', '✓ Quick chips saved.');
+}
+
+async function resetChips() {
+  labCustomChips = null;
+  await pcAPI.storeSet('labChips', null);
+  renderLabChips();
+  addMsg('sys', '✓ Chips reset to default.');
+}
+
+function renderTerminalChips(chips) {
+  const el = document.querySelector('.chips');
+  if (!el) return;
+  el.innerHTML = chips.map(c => `<div class="chip" onclick="quickCmd('${c.replace(/'/g,"\\'")}')"> ${c}</div>`).join('');
+}
+
+function runJS() {
+  const code = document.getElementById('lab-js').value.trim();
+  const out = document.getElementById('lab-js-out');
+  if (!code) return;
+  try {
+    const result = eval(code);
+    out.style.color = 'var(--accent3)';
+    out.textContent = result !== undefined ? '→ ' + JSON.stringify(result) : '→ (no return value)';
+  } catch(e) {
+    out.style.color = 'var(--danger)';
+    out.textContent = '✗ Error: ' + e.message;
+  }
+}
+
+async function openConfigFolder() {
+  const r = await pcAPI.runCommand('echo $env:APPDATA');
+  if (r.stdout) {
+    const folder = r.stdout.trim() + '\handler';
+    await pcAPI.runCommand(`Start-Process explorer.exe '${folder}'`);
+  }
+}
+
+</script>
+</body>
+</html>

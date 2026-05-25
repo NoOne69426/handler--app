@@ -113,7 +113,8 @@ app.on('window-all-closed', () => {
 // ─── Lock screen handlers ───────────────────────────────────────────
 ipcMain.handle('lock-check-setup', () => {
   const hash = storeGet('pwHash');
-  return { hasPassword: !!hash };
+  const disabled = storeGet('pwDisabled');
+  return { hasPassword: !!hash, disabled: !!disabled };
 });
 
 ipcMain.handle('lock-set-password', (event, password) => {
@@ -134,6 +135,25 @@ ipcMain.handle('lock-verify', (event, password) => {
 ipcMain.handle('lock-unlock', () => {
   createWindow();
   if (lockWindow) { lockWindow.close(); lockWindow = null; }
+  return { success: true };
+});
+
+ipcMain.handle('lock-remove-password', () => {
+  storeSet('pwHash', null);
+  storeSet('pwDisabled', true);
+  return { success: true };
+});
+
+ipcMain.handle('lock-status', () => {
+  const hash = storeGet('pwHash');
+  const disabled = storeGet('pwDisabled');
+  return { hasPassword: !!hash, disabled: !!disabled };
+});
+
+ipcMain.handle('lock-enable-password', (event, password) => {
+  const hash = hashPassword(password);
+  storeSet('pwHash', hash);
+  storeSet('pwDisabled', false);
   return { success: true };
 });
 
@@ -263,7 +283,7 @@ ipcMain.handle('run-command', async (event, cmd) => {
     const timer = setTimeout(() => {
       child.kill();
       settle({ stdout: out.trim(), stderr: 'Timeout (60s) — command took too long', code: -1 });
-    }, 120000);
+    }, 60000);
 
     child.stdout.on('data', d => out += d.toString());
     child.stderr.on('data', d => err += d.toString());

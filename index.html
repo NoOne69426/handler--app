@@ -437,6 +437,37 @@ tr:hover td{background:rgba(255,255,255,.03);}
           </div>
         </div>
         <div class="settings-section">
+          <div class="settings-title"><i class="fa-solid fa-lock"></i> Password & Security</div>
+          <div id="pw-status-row" class="setting-row">
+            <div><div class="setting-label">App Password</div><div class="setting-desc" id="pw-status-desc">Loading...</div></div>
+            <span id="pw-status-badge" style="font-size:11px;padding:3px 10px;border-radius:4px;"></span>
+          </div>
+          <div id="pw-remove-row" class="setting-row" style="display:none;">
+            <div><div class="setting-label">Remove Password</div><div class="setting-desc">App will open directly without asking for password</div></div>
+            <button class="danger-btn" onclick="removePassword()">Remove Password</button>
+          </div>
+          <div id="pw-set-row" class="setting-row" style="display:none;">
+            <div><div class="setting-label">Set Password</div><div class="setting-desc">Protect the app with a password on launch</div></div>
+            <button class="save-btn" style="width:auto;padding:7px 18px;" onclick="showSetPasswordUI()">Set Password</button>
+          </div>
+          <div id="pw-set-form" style="display:none;padding:10px 0;">
+            <div class="setting-row" style="border:none;padding:4px 0;">
+              <div><div class="setting-label">New Password</div></div>
+              <input class="setting-inp" id="new-pw-1" type="password" placeholder="Min 8 characters" style="width:200px;" />
+            </div>
+            <div class="setting-row" style="border:none;padding:4px 0;">
+              <div><div class="setting-label">Confirm Password</div></div>
+              <input class="setting-inp" id="new-pw-2" type="password" placeholder="Re-enter password" style="width:200px;" />
+            </div>
+            <div id="pw-set-err" style="font-size:11px;color:var(--danger);padding:4px 0;"></div>
+            <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
+              <button class="danger-btn" onclick="cancelSetPassword()">Cancel</button>
+              <button class="save-btn" style="width:auto;padding:7px 18px;" onclick="confirmSetPassword()">Confirm & Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-title"><i class="fa-solid fa-shield-halved"></i> Safety</div>
           <div class="setting-row">
             <div><div class="setting-label">Confirm before killing processes</div><div class="setting-desc">Show a confirmation dialog before terminating</div></div>
@@ -788,6 +819,7 @@ function showTab(name, el) {
   if (name === 'files') loadFiles(curDir);
   if (name === 'network') loadNetwork();
   if (name === 'lab') initLab();
+  if (name === 'settings') loadPasswordStatus();
   if (name === 'terminal') updateCtxStats && updateCtxStats();
 }
 
@@ -1485,6 +1517,68 @@ setTimeout(async () => {
     }
   } catch(e) {}
 }, 5000);
+
+
+// ── Password Management ────────────────────────────────────────────
+async function loadPasswordStatus() {
+  try {
+    const { hasPassword, disabled } = await pcAPI.lockStatus();
+    const desc = document.getElementById('pw-status-desc');
+    const badge = document.getElementById('pw-status-badge');
+    const removeRow = document.getElementById('pw-remove-row');
+    const setRow = document.getElementById('pw-set-row');
+    if (!desc) return;
+
+    if (hasPassword && !disabled) {
+      desc.textContent = 'Password is set. App asks for password on launch.';
+      badge.textContent = 'ENABLED';
+      badge.style.background = 'rgba(0,255,157,.15)';
+      badge.style.color = 'var(--accent3)';
+      removeRow.style.display = '';
+      setRow.style.display = 'none';
+    } else {
+      desc.textContent = 'No password set. App opens directly on launch.';
+      badge.textContent = 'DISABLED';
+      badge.style.background = 'rgba(255,71,87,.15)';
+      badge.style.color = 'var(--danger)';
+      removeRow.style.display = 'none';
+      setRow.style.display = '';
+    }
+  } catch(e) {}
+}
+
+async function removePassword() {
+  if (!confirm('Remove the app password? Anyone will be able to open Handler without a password.')) return;
+  await pcAPI.lockRemovePassword();
+  addMsg('sys', 'Password removed. App will open directly from next launch.');
+  loadPasswordStatus();
+}
+
+function showSetPasswordUI() {
+  document.getElementById('pw-set-form').style.display = 'block';
+  document.getElementById('pw-set-row').style.display = 'none';
+  document.getElementById('new-pw-1').focus();
+}
+
+function cancelSetPassword() {
+  document.getElementById('pw-set-form').style.display = 'none';
+  document.getElementById('pw-set-row').style.display = '';
+  document.getElementById('new-pw-1').value = '';
+  document.getElementById('new-pw-2').value = '';
+  document.getElementById('pw-set-err').textContent = '';
+}
+
+async function confirmSetPassword() {
+  const pw1 = document.getElementById('new-pw-1').value;
+  const pw2 = document.getElementById('new-pw-2').value;
+  const err = document.getElementById('pw-set-err');
+  if (pw1.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw1 !== pw2) { err.textContent = 'Passwords do not match.'; return; }
+  await pcAPI.lockEnablePassword(pw1);
+  cancelSetPassword();
+  addMsg('sys', 'Password set. App will ask for it on next launch.');
+  loadPasswordStatus();
+}
 
 </script>
 

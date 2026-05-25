@@ -254,6 +254,7 @@ tr:hover td{background:rgba(255,255,255,.03);}
       <div class="nav-label">App</div>
       <div class="nav-item" onclick="showTab('settings',this)"><i class="fa-solid fa-gear"></i> Settings</div>
       <div class="nav-item" onclick="showTab('lab',this)"><i class="fa-solid fa-flask"></i> Lab <span style="font-size:9px;color:var(--warn);margin-left:4px;">✦ EDIT</span></div>
+      <div class="nav-item" onclick="checkForUpdates()"><i class="fa-solid fa-cloud-arrow-down"></i> Check Updates <span id="update-badge" style="display:none;background:var(--accent3);color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:4px;">NEW</span></div>
       <div class="nav-divider"></div>
       <div class="nav-item" onclick="clearLog()"><i class="fa-solid fa-trash-can"></i> Clear log</div>
       <div class="nav-item" onclick="exportLog()"><i class="fa-solid fa-download"></i> Export log</div>
@@ -1359,6 +1360,154 @@ async function openConfigFolder() {
   }
 }
 
+
+// ── Auto-Updater ───────────────────────────────────────────────────
+const GITHUB_RAW = 'https://raw.githubusercontent.com/NoOne69426/handler-app/main/';
+const UPDATE_FILES = ['index.html', 'main.js', 'preload.js'];
+let pendingUpdates = [];
+
+function showUpdateModal() {
+  document.getElementById('update-modal').style.display = 'flex';
+}
+
+function closeUpdateModal() {
+  document.getElementById('update-modal').style.display = 'none';
+  document.getElementById('update-progress').style.display = 'none';
+  document.getElementById('update-action-btn').style.display = 'none';
+  document.getElementById('update-cancel-btn').textContent = 'Cancel';
+  pendingUpdates = [];
+}
+
+async function checkForUpdates() {
+  showUpdateModal();
+  document.getElementById('update-modal-title').textContent = 'Checking for updates...';
+  document.getElementById('update-modal-body').textContent = 'Connecting to GitHub...';
+  document.getElementById('update-action-btn').style.display = 'none';
+  pendingUpdates = [];
+
+  try {
+    const checks = await Promise.all(UPDATE_FILES.map(async file => {
+      try {
+        const res = await fetch(GITHUB_RAW + file, { cache: 'no-store' });
+        if (!res.ok) return { file, status: 'error', error: res.status };
+        const remoteContent = await res.text();
+        const local = await pcAPI.readFile('src/' + file);
+        const localContent = local.content || '';
+        const changed = remoteContent.trim() !== localContent.trim();
+        return { file, status: 'ok', changed, remoteContent };
+      } catch(e) {
+        return { file, status: 'error', error: e.message };
+      }
+    }));
+
+    const changed = checks.filter(c => c.status === 'ok' && c.changed);
+    const errors  = checks.filter(c => c.status === 'error');
+
+    if (changed.length === 0) {
+      document.getElementById('update-modal-title').textContent = 'You are up to date';
+      document.getElementById('update-modal-body').innerHTML =
+        '<span style="color:var(--accent3)">All files match the latest version on GitHub.</span>' +
+        (errors.length ? '<br><span style="color:var(--warn)">Could not check: ' + errors.map(e=>e.file).join(', ') + '</span>' : '');
+      document.getElementById('update-cancel-btn').textContent = 'Close';
+      return;
+    }
+
+    pendingUpdates = changed;
+    document.getElementById('update-modal-title').textContent = changed.length + ' update(s) available';
+    document.getElementById('update-modal-body').innerHTML =
+      'The following files have updates:<br><br>' +
+      changed.map(c => '<span style="color:var(--accent)">-> ' + c.file + '</span>').join('<br>') +
+      '<br><br>Handler will restart after updating.';
+    document.getElementById('update-action-btn').style.display = 'block';
+    document.getElementById('update-badge').style.display = 'inline';
+
+  } catch(e) {
+    document.getElementById('update-modal-title').textContent = 'Update check failed';
+    document.getElementById('update-modal-body').innerHTML =
+      '<span style="color:var(--danger)">Error: ' + e.message + '</span><br><br>Make sure you are connected to the internet.';
+    document.getElementById('update-cancel-btn').textContent = 'Close';
+  }
+}
+
+async function applyUpdates() {
+  if (!pendingUpdates.length) return;
+  document.getElementById('update-action-btn').style.display = 'none';
+  document.getElementById('update-cancel-btn').style.display = 'none';
+  document.getElementById('update-progress').style.display = 'block';
+  document.getElementById('update-modal-title').textContent = 'Updating...';
+  document.getElementById('update-modal-body').textContent = 'Applying updates — do not close the app.';
+
+  let done = 0;
+  const errors = [];
+
+  for (const { file, remoteContent } of pendingUpdates) {
+    document.getElementById('update-progress-label').textContent = 'Writing ' + file + '...';
+    document.getElementById('update-progress-bar').style.width = (done / pendingUpdates.length * 80) + '%';
+    const result = await pcAPI.writeFile('src/' + file, remoteContent);
+    if (result.success) { done++; }
+    else { errors.push(file + ': ' + (result.error || 'unknown error')); }
+  }
+
+  document.getElementById('update-progress-bar').style.width = '100%';
+
+  if (errors.length) {
+    document.getElementById('update-modal-title').textContent = 'Update failed';
+    document.getElementById('update-modal-body').innerHTML =
+      '<span style="color:var(--danger)">Errors:<br>' + errors.join('<br>') + '</span>';
+    document.getElementById('update-cancel-btn').textContent = 'Close';
+    document.getElementById('update-cancel-btn').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('update-progress-label').textContent = 'Done! Restarting...';
+  document.getElementById('update-modal-body').innerHTML =
+    '<span style="color:var(--accent3)">' + done + ' file(s) updated. Restarting Handler...</span>';
+  document.getElementById('update-badge').style.display = 'none';
+
+  setTimeout(async () => {
+    await pcAPI.runCommand('Stop-Process -Id $PID -Force');
+  }, 1500);
+}
+
+// Auto-check silently on startup
+setTimeout(async () => {
+  try {
+    const checks = await Promise.all(UPDATE_FILES.map(async file => {
+      const res = await fetch(GITHUB_RAW + file, { cache: 'no-store' });
+      if (!res.ok) return false;
+      const remote = await res.text();
+      const local = await pcAPI.readFile('src/' + file);
+      return remote.trim() !== (local.content || '').trim();
+    }));
+    if (checks.some(Boolean)) {
+      document.getElementById('update-badge').style.display = 'inline';
+      addMsg('sys', 'Updates available — click Check Updates in the sidebar to install.');
+    }
+  } catch(e) {}
+}, 5000);
+
 </script>
+
+<!-- Update Modal -->
+<div id="update-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--s2);border:1px solid var(--b2);border-radius:12px;padding:24px;width:420px;max-width:90vw;font-family:var(--mono);">
+    <div style="font-family:var(--sans);font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+      <i class="fa-solid fa-cloud-arrow-down" style="color:var(--accent)"></i>
+      <span id="update-modal-title">Checking for updates...</span>
+    </div>
+    <div id="update-modal-body" style="font-size:12px;color:var(--muted2);margin:12px 0;line-height:1.7;min-height:60px;"></div>
+    <div id="update-progress" style="display:none;margin:10px 0;">
+      <div style="height:4px;background:var(--b2);border-radius:2px;overflow:hidden;">
+        <div id="update-progress-bar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s;"></div>
+      </div>
+      <div id="update-progress-label" style="font-size:11px;color:var(--muted);margin-top:5px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button id="update-cancel-btn" onclick="closeUpdateModal()" style="padding:7px 16px;background:var(--s3);border:1px solid var(--b2);border-radius:6px;color:var(--muted2);cursor:pointer;font-family:var(--mono);font-size:12px;">Cancel</button>
+      <button id="update-action-btn" style="display:none;padding:7px 16px;background:var(--accent);border:none;border-radius:6px;color:#000;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;" onclick="applyUpdates()">Update Now</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
